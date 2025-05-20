@@ -1,0 +1,6 @@
+Archivo,Agente,Campaña,Fecha,Palabras,Duración (min),Palabras/min,Saludo Detectado,Consentimiento Solicitado,Consentimiento Afirmado,Precio Mencionado,Cierre Detectado,Objeción Detectada,Resultado Estimado,Preview
+test5.mp3,Juan Pérez,Campaña A,2025-05-16,2597,14.72,176.43,True,False,False,True,False,False,Indeterminado,"Un mil Onlyொ Buenas Buenas tardes Pero saludarla, mi nombre es Aguera Súñiga, la llamo por ser clienta de NSI,..."
+test4.mp3,Ana Vargas,Campaña B,2025-05-15,1446,9.93,145.62,False,False,False,True,False,False,Indeterminado,y y y y y y y y y y y y y y y y y y y y...
+test3.mp3,Juan Pérez,Campaña B,2025-05-15,2469,13.02,189.63,True,False,False,True,False,False,Indeterminado,"¿No? ¡Halo! ¡Halo, buenas tardes! ¿Bondas, buenas tardes? Hablo con la señorita de Ugenia Valero. Con ella. Señorita de Ugenia,..."
+test2.mp3,Marcela Soto,Campaña A,2025-05-14,568,3.2,177.5,True,False,False,False,False,False,Indeterminado,"Hola Santiago, ¿cómo estás? Te hablan de esas esor comercial y he encargado de tu servicio telefónico. ¿Cómo estás? Bien,..."
+test1.mp3,Juan Pérez,Campaña A,2025-05-14,418,3.07,136.16,True,False,False,True,False,False,Indeterminado,"¿Buenas tardes? Buenas sabos, ¿Ves lejos para una de digin canaliza de créditos de bancos y SPM? ¿Cómo único con..."
