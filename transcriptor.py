@@ -4,40 +4,54 @@ import csv
 import ffmpeg
 import pandas as pd
 from datetime import datetime
+from difflib import SequenceMatcher
+from tqdm import tqdm  # <--- NUEVO
 
 # Configuración
 audio_dir = "audios"
 transcripcion_dir = "transcripciones"
 metadatos_path = "metadatos.csv"
 resumen_path = "resumen.csv"
+script_path = "script_campana_bloques.csv"
 no_procesados_path = "no_procesados.csv"
 
 os.makedirs(transcripcion_dir, exist_ok=True)
 
-# Asegura acceso a ffmpeg
-os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
-
-print("🔁 Cargando modelo Whisper (base)...")
-model = whisper.load_model("base")
-
-# Frases clave por grupo de KPI
+# Frases clave
 SALUDOS = ["hola", "buenos días", "buenas tardes", "le habla"]
 CONSENTIMIENTO = ["consentimiento", "autorización", "permite grabar"]
 CIERRES = ["envío contrato", "queda registrado", "confirmo su compra", "formalizar"]
 PRECIOS = ["precio", "costo", "valor", "cuota", "montos"]
 OBJECIONES = ["no me interesa", "lo voy a pensar", "muy caro", "no puedo ahora", "ya lo vi", "no estoy interesado"]
 
-# Funciones
-def obtener_duracion_audio(path):
-    try:
-        probe = ffmpeg.probe(path)
-        return float(probe["format"]["duration"])
-    except Exception as e:
-        print(f"⚠️ Error obteniendo duración: {e}")
-        return 0.0
+# Cargar modelo Whisper con mejor calidad
+print("🔁 Cargando modelo Whisper (medium)...")
+model = whisper.load_model("medium")
+
+# Cargar scripts por bloques
+bloques = ["Saludo", "Presentación", "Oferta", "Beneficios", "Cierre"]
+df_script = pd.read_csv(script_path) if os.path.exists(script_path) else pd.DataFrame(columns=["Campaña"] + bloques)
+
+def obtener_script_bloques(campaña):
+    fila = df_script[df_script["Campaña"] == campaña]
+    return fila.iloc[0].to_dict() if not fila.empty else {}
+
+def calcular_apego_bloques(script_dict, transcripcion):
+    if not script_dict:
+        return 0.0, {}
+    total_score, detalle = 0.0, {}
+    for bloque in bloques:
+        contenido = script_dict.get(bloque, "")
+        palabras_script = set(contenido.lower().split())
+        palabras_trans = set(transcripcion.lower().split())
+        comunes = palabras_script.intersection(palabras_trans)
+        score = len(comunes) / len(palabras_script) * 100 if palabras_script else 0
+        detalle[bloque] = round(score, 1)
+        total_score += score
+    return round(total_score / len(bloques), 1), detalle
 
 def contiene_frases(texto, frases):
-    return any(frase.lower() in texto.lower() for frase in frases)
+    return any(frase in texto.lower() for frase in frases)
 
 def detectar_consentimiento_afirmativo(texto):
     palabras = texto.lower().split()
@@ -51,6 +65,13 @@ def detectar_consentimiento_afirmativo(texto):
                 break
     return resultado
 
+def obtener_duracion_audio(path):
+    try:
+        probe = ffmpeg.probe(path)
+        return float(probe["format"]["duration"])
+    except:
+        return 0.0
+
 def validar_fecha(fecha_str):
     try:
         datetime.strptime(str(fecha_str), "%Y-%m-%d")
@@ -58,100 +79,73 @@ def validar_fecha(fecha_str):
     except:
         return False
 
-# Cargar metadatos
-if not os.path.exists(metadatos_path):
-    print("❌ No se encontró el archivo metadatos.csv")
-    exit()
-
-metadatos_df = pd.read_csv(metadatos_path, encoding="utf-8-sig")
-metadatos_df.columns = [col.strip().replace("\ufeff", "") for col in metadatos_df.columns]
-
-# Inicialización
-filas_resumen = []
+# Procesar audios
+metadatos = pd.read_csv(metadatos_path)
+resumen = []
 no_procesados = []
 
-# Procesar audios
-for archivo in os.listdir(audio_dir):
-    if not archivo.endswith((".mp3", ".wav", ".m4a")):
+audios_lista = [a for a in os.listdir(audio_dir) if a.endswith((".mp3", ".wav", ".m4a"))]
+
+for archivo in tqdm(audios_lista, desc="Procesando audios"):
+    if archivo not in metadatos["Archivo"].values:
+        no_procesados.append([archivo, "No está en metadatos"])
         continue
 
-    if archivo not in metadatos_df["Archivo"].values:
-        print(f"⚠️ {archivo} omitido: no está en metadatos.csv")
-        no_procesados.append([archivo, "No está en metadatos.csv"])
+    fila = metadatos[metadatos["Archivo"] == archivo].iloc[0]
+    agente, campaña, fecha = fila["Agente"], fila["Campaña"], fila["Fecha"]
+
+    if not all([agente, campaña, fecha]) or not validar_fecha(fecha):
+        no_procesados.append([archivo, "Datos incompletos o fecha inválida"])
         continue
 
-    fila = metadatos_df[metadatos_df["Archivo"] == archivo].iloc[0]
-    agente = str(fila.get("Agente", "")).strip()
-    campaña = str(fila.get("Campaña", "")).strip()
-    fecha_str = str(fila.get("Fecha", "")).strip()
+    path_audio = os.path.join(audio_dir, archivo)
+    transcripcion = model.transcribe(path_audio, language="Spanish")["text"].strip()
 
-    if not agente or not campaña or not fecha_str:
-        no_procesados.append([archivo, "Metadatos incompletos"])
-        continue
+    palabras = len(transcripcion.split())
+    duracion_min = round(obtener_duracion_audio(path_audio) / 60, 2)
+    ppm = round(palabras / duracion_min, 2) if duracion_min > 0 else 0
+    preview = " ".join(transcripcion.split()[:20]) + "..."
 
-    if not validar_fecha(fecha_str):
-        no_procesados.append([archivo, "Fecha inválida"])
-        continue
+    saludo = contiene_frases(transcripcion, SALUDOS)
+    objecion = contiene_frases(transcripcion, OBJECIONES)
+    cierre = contiene_frases(transcripcion, CIERRES)
+    precio = contiene_frases(transcripcion, PRECIOS)
+    consentimiento = detectar_consentimiento_afirmativo(transcripcion)
 
-    ruta_audio = os.path.join(audio_dir, archivo)
-    nombre_base = os.path.splitext(archivo)[0]
-    ruta_txt = os.path.join(transcripcion_dir, f"{nombre_base}.txt")
+    script_dict = obtener_script_bloques(campaña)
+    apego_total, detalle = calcular_apego_bloques(script_dict, transcripcion)
 
-    print(f"✅ Procesando: {archivo}")
-    resultado = model.transcribe(ruta_audio, language="Spanish")
-    texto = resultado["text"].strip()
-    palabras = len(texto.split())
-    duracion_seg = obtener_duracion_audio(ruta_audio)
-    duracion_min = round(duracion_seg / 60, 2)
-    palabras_por_min = round(palabras / duracion_min, 2) if duracion_min > 0 else 0
-
-    saludo = contiene_frases(texto, SALUDOS)
-    objecion = contiene_frases(texto, OBJECIONES)
-    cierre = contiene_frases(texto, CIERRES)
-    menciona_precio = contiene_frases(texto, PRECIOS)
-    consentimiento_data = detectar_consentimiento_afirmativo(texto)
-    preview = " ".join(texto.split()[:20]) + "..."
+    score = apego_total * 0.5 + (15 if saludo else 0) + (20 if cierre else 0) + (15 if consentimiento["respuesta_positiva"] else 0)
 
     if cierre and not objecion:
-        resultado_estimado = "Exitoso"
+        resultado = "Exitoso"
     elif objecion and not cierre:
-        resultado_estimado = "No Exitoso"
+        resultado = "No Exitoso"
     else:
-        resultado_estimado = "Indeterminado"
+        resultado = "Indeterminado"
 
-    with open(ruta_txt, "w", encoding="utf-8") as f:
-        f.write(texto)
-
-    filas_resumen.append([
-        archivo, agente, campaña, fecha_str,
-        palabras, duracion_min, palabras_por_min,
-        saludo, consentimiento_data["consentimiento"],
-        consentimiento_data["respuesta_positiva"],
-        menciona_precio, cierre, objecion,
-        resultado_estimado, preview
-    ])
+    resumen.append([
+        archivo, agente, campaña, fecha, palabras, duracion_min, ppm,
+        saludo, consentimiento["consentimiento"], consentimiento["respuesta_positiva"],
+        precio, cierre, objecion, resultado, preview,
+        apego_total, round(score, 1)
+    ] + [detalle.get(b, 0.0) for b in bloques])
 
 # Guardar resumen
-with open(resumen_path, mode="w", newline="", encoding="utf-8") as f:
+with open(resumen_path, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerow([
-        "Archivo", "Agente", "Campaña", "Fecha",
-        "Palabras", "Duración (min)", "Palabras/min",
-        "Saludo Detectado", "Consentimiento Solicitado",
-        "Consentimiento Afirmado", "Precio Mencionado",
-        "Cierre Detectado", "Objeción Detectada",
-        "Resultado Estimado", "Preview"
-    ])
-    writer.writerows(filas_resumen)
+        "Archivo", "Agente", "Campaña", "Fecha", "Palabras", "Duración (min)", "Palabras/min",
+        "Saludo Detectado", "Consentimiento Solicitado", "Consentimiento Afirmado",
+        "Precio Mencionado", "Cierre Detectado", "Objeción Detectada", "Resultado Estimado", "Preview",
+        "Apego al Guion (%)", "Score Total"
+    ] + [f"% {b}" for b in bloques])
+    writer.writerows(resumen)
 
-# Guardar archivos no procesados
 if no_procesados:
-    with open(no_procesados_path, mode="w", newline="", encoding="utf-8") as f:
+    with open(no_procesados_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["Archivo no procesado", "Motivo"])
+        writer.writerow(["Archivo", "Motivo"])
         writer.writerows(no_procesados)
 
-print("\n✅ Proceso completado.")
-print(f"→ {resumen_path}")
-if no_procesados:
-    print(f"→ {no_procesados_path} (audios omitidos)")
+print("✅ Proceso completado.")
