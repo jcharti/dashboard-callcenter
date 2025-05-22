@@ -1,3 +1,4 @@
+
 import os
 import whisper
 import csv
@@ -5,7 +6,7 @@ import ffmpeg
 import pandas as pd
 from datetime import datetime
 from difflib import SequenceMatcher
-from tqdm import tqdm  # <--- NUEVO
+from tqdm import tqdm
 
 # Configuración
 audio_dir = "audios"
@@ -24,9 +25,9 @@ CIERRES = ["envío contrato", "queda registrado", "confirmo su compra", "formali
 PRECIOS = ["precio", "costo", "valor", "cuota", "montos"]
 OBJECIONES = ["no me interesa", "lo voy a pensar", "muy caro", "no puedo ahora", "ya lo vi", "no estoy interesado"]
 
-# Cargar modelo Whisper con mejor calidad
-print("🔁 Cargando modelo Whisper (medium)...")
-model = whisper.load_model("medium")
+# Cargar modelo Whisper
+print("🔁 Cargando modelo Whisper (base)...")
+model = whisper.load_model("base")
 
 # Cargar scripts por bloques
 bloques = ["Saludo", "Presentación", "Oferta", "Beneficios", "Cierre"]
@@ -51,23 +52,18 @@ def calcular_apego_bloques(script_dict, transcripcion):
     return round(total_score / len(bloques), 1), detalle
 
 def contiene_frases(texto, frases):
-    return any(frase in texto.lower() for frase in frases)
+    return any(f in texto.lower() for f in frases)
 
 def detectar_consentimiento_afirmativo(texto):
-    palabras = texto.lower().split()
-    resultado = {"consentimiento": False, "respuesta_positiva": False}
-    for i, palabra in enumerate(palabras):
-        if "consentimiento" in palabra:
-            resultado["consentimiento"] = True
-            siguientes = palabras[i+1:i+6]
-            if any(w in ["sí", "claro", "correcto"] for w in siguientes):
-                resultado["respuesta_positiva"] = True
-                break
-    return resultado
+    lower_text = texto.lower()
+    return {
+        "consentimiento": contiene_frases(lower_text, CONSENTIMIENTO),
+        "respuesta_positiva": any(p in lower_text for p in ["sí", "claro", "por supuesto", "correcto"])
+    }
 
-def obtener_duracion_audio(path):
+def obtener_duracion_audio(path_audio):
     try:
-        probe = ffmpeg.probe(path)
+        probe = ffmpeg.probe(path_audio)
         return float(probe["format"]["duration"])
     except:
         return 0.0
@@ -78,6 +74,27 @@ def validar_fecha(fecha_str):
         return True
     except:
         return False
+
+def evaluar_velocidad(wpm):
+    if wpm < 90:
+        return "Lenta", 0.5
+    elif wpm > 140:
+        return "Rápida", 0.5
+    else:
+        return "Adecuada", 1.0
+
+def evaluar_friccion(porcentaje):
+    if porcentaje <= 5:
+        return "Baja", 1.0
+    elif porcentaje <= 15:
+        return "Media", 0.75
+    else:
+        return "Alta", 0.5
+
+def calcular_score_total(apego, wpm, friccion_pct):
+    _, puntaje_wpm = evaluar_velocidad(wpm)
+    _, puntaje_friccion = evaluar_friccion(friccion_pct)
+    return round(apego * 0.6 + puntaje_wpm * 100 * 0.2 + puntaje_friccion * 100 * 0.2, 1)
 
 # Procesar audios
 metadatos = pd.read_csv(metadatos_path)
@@ -115,30 +132,36 @@ for archivo in tqdm(audios_lista, desc="Procesando audios"):
     script_dict = obtener_script_bloques(campaña)
     apego_total, detalle = calcular_apego_bloques(script_dict, transcripcion)
 
-    score = apego_total * 0.5 + (15 if saludo else 0) + (20 if cierre else 0) + (15 if consentimiento["respuesta_positiva"] else 0)
+    friccion_pct = 0
+    for frase in OBJECIONES:
+        if frase in transcripcion.lower():
+            friccion_pct += 1
+    total_frases = len(transcripcion.split(".")) or 1
+    friccion_pct = round((friccion_pct / total_frases) * 100, 2)
 
-    if cierre and not objecion:
-        resultado = "Exitoso"
-    elif objecion and not cierre:
-        resultado = "No Exitoso"
-    else:
-        resultado = "Indeterminado"
+    eval_wpm, _ = evaluar_velocidad(ppm)
+    eval_fric, _ = evaluar_friccion(friccion_pct)
+    score_total = calcular_score_total(apego_total, ppm, friccion_pct)
 
-    resumen.append([
+    resultado = "Exitoso" if cierre and not objecion else "No Exitoso" if objecion and not cierre else "Indeterminado"
+
+    fila_resumen = [
         archivo, agente, campaña, fecha, palabras, duracion_min, ppm,
         saludo, consentimiento["consentimiento"], consentimiento["respuesta_positiva"],
         precio, cierre, objecion, resultado, preview,
-        apego_total, round(score, 1)
-    ] + [detalle.get(b, 0.0) for b in bloques])
+        apego_total, ppm, eval_wpm, friccion_pct, eval_fric, score_total
+    ]
+    for b in bloques:
+        fila_resumen.append(detalle.get(b, 0.0))
+    resumen.append(fila_resumen)
 
-# Guardar resumen
 with open(resumen_path, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerow([
         "Archivo", "Agente", "Campaña", "Fecha", "Palabras", "Duración (min)", "Palabras/min",
         "Saludo Detectado", "Consentimiento Solicitado", "Consentimiento Afirmado",
         "Precio Mencionado", "Cierre Detectado", "Objeción Detectada", "Resultado Estimado", "Preview",
-        "Apego al Guion (%)", "Score Total"
+        "Apego al Guion (%)", "WPM", "Evaluación WPM", "Friccion (%)", "Evaluación Fricción", "Score Total"
     ] + [f"% {b}" for b in bloques])
     writer.writerows(resumen)
 

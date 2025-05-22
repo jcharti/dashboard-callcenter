@@ -41,30 +41,55 @@ ultimo_mes = df[df["Fecha"] >= (df["Fecha"].max() - pd.Timedelta(days=30))]
 
 ranking = (
     ultimo_mes.groupby("Agente").agg({
+        "Archivo": "count",
         "Score Total": "mean",
         "Apego al Guion (%)": "mean",
-        "Archivo": "count",
-        "% Saludo": "mean",
-        "% Presentación": "mean",
-        "% Oferta": "mean",
-        "% Beneficios": "mean",
-        "% Cierre": "mean"
-    })
-    .rename(columns={"Archivo": "Llamadas"})
-    .reset_index()
+        "WPM": "mean",
+        "Friccion (%)": "mean"
+    }).rename(columns={"Archivo": "Llamadas"}).reset_index()
 )
+
+ranking["Evaluación WPM"] = ranking["WPM"].apply(lambda x: "Lenta" if x < 90 else "Adecuada" if x <= 140 else "Rápida")
+ranking["Evaluación Fricción"] = ranking["Friccion (%)"].apply(lambda x: "Baja" if x <= 5 else "Media" if x <= 15 else "Alta")
+
+
+def icono_wpm(valor):
+    if valor == "Adecuada":
+        return "🟢 Adecuada"
+    elif valor == "Lenta":
+        return "🟠 Lenta"
+    else:
+        return "🔴 Rápida"
+
+ranking["Evaluación WPM"] = ranking["Evaluación WPM"].apply(icono_wpm)
+
+def icono_friccion(valor):
+    if valor == "Baja":
+        return "🟢 Baja"
+    elif valor == "Media":
+        return "🟠 Media"
+    else:
+        return "🔴 Alta"
+
+ranking["Evaluación Fricción"] = ranking["Evaluación Fricción"].apply(icono_friccion)
+
+
+
+
+
+
+if st.button("ℹ️ Ver explicación de KPIs y Score"):
+    st.switch_page("pages/explicacion_score.py")
 
 # Redondear sin decimales
 ranking = ranking.round(0).astype({
     "Llamadas": int,
     "Score Total": int,
     "Apego al Guion (%)": int,
-    "% Saludo": int,
-    "% Presentación": int,
-    "% Oferta": int,
-    "% Beneficios": int,
-    "% Cierre": int
+    "WPM": int,
+    "Friccion (%)": int
 })
+
 
 # Estilo de score
 def highlight_score(val):
@@ -75,8 +100,8 @@ st.subheader("🏅 Ranking de Agentes (últimos 30 días)")
 st.caption("Valores redondeados sin decimales. Score resaltado en verde.")
 tabla_ranking = ranking[[
     "Agente", "Llamadas", "Score Total", "Apego al Guion (%)",
-    "% Saludo", "% Presentación", "% Oferta", "% Beneficios", "% Cierre"
-]]
+    "WPM", "Evaluación WPM", "Friccion (%)", "Evaluación Fricción"
+]].sort_values("Score Total", ascending=False)
 tabla_ranking = tabla_ranking.style.map(highlight_score, subset=["Score Total"])
 st.dataframe(tabla_ranking, use_container_width=True)
 
@@ -116,3 +141,20 @@ st.subheader(f"📈 Evolución del Score - {agente_sel}")
 fig_line = px.line(score_tiempo, x="Fecha", y="Score Total", markers=True)
 fig_line.update_layout(yaxis_title="Score", xaxis_title="Fecha")
 st.plotly_chart(fig_line, use_container_width=True)
+
+
+
+st.subheader("📊 Comparación de Score Total por Agente")
+
+fig = px.bar(
+    ranking,
+    x="Agente",
+    y="Score Total",
+    text="Score Total",
+    color="Score Total",
+    color_continuous_scale="Blues",
+    title="Score Total Promedio por Agente en los Últimos 30 Días"
+)
+fig.update_traces(texttemplate='%{text:.0f}', textposition='outside')
+fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+st.plotly_chart(fig, use_container_width=True)
