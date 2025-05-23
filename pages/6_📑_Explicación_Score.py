@@ -5,9 +5,9 @@ st.set_page_config(page_title="Explicación del Score", layout="wide")
 
 st.title("📑 Explicación de KPIs y Score de Agentes")
 
-st.header("📑 Cálculo del Apego al Guion")
+st.header("📑 Cálculo del Apego al Guión")
 st.markdown("""
-El **Apego al Guion** se calcula como el promedio de cumplimiento por bloques del script definidos para cada campaña:
+El **Apego al Guión** se calcula como el promedio de cumplimiento por bloques del script definidos para cada campaña:
 
 | Bloque       | Ejemplo de contenido            | Peso |
 |--------------|----------------------------------|------|
@@ -26,7 +26,7 @@ El **Score Total** se calcula como un promedio ponderado de los siguientes KPIs:
 
 | KPI                   | Descripción                                                 | Peso |
 |------------------------|-------------------------------------------------------------|------|
-| 🟢 Apego al guion       | Coincidencia con el script en bloques clave                 | 60%  |
+| 🟢 Apego al Guión       | Coincidencia con el script en bloques clave                 | 60%  |
 | 🔵 Velocidad de habla   | Palabras por minuto (entre 90 y 140 wpm es ideal)           | 20%  |
 | 🔴 Fricción detectada   | % de frases negativas u objeciones del cliente detectadas   | 20%  |
 """)

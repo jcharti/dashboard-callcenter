@@ -1,2 +1,17 @@
 Campaña,Saludo,Presentación,Oferta,Beneficios,Cierre
-ONCOLOGICO_TLMK,"Buenos días, me podría comunicar con Don o Sra. gusto en saludarle.",Le llamo de parte de Banchile Corredores de Seguros.,Contarle que tenemos disponible nuestro Seguro Oncológico Libre Elección.,"Las primeras 3 cuotas sin costo, UF 30.000 asegurado, reembolso, telemedicina.",Puede contratarlo desde la web o la app Mi Banco.
+BCI Plus,"muy buenos días/tardes, ¿hablo con el sr./sra. [nombre del cliente]? mi nombre es [nombre del agente], lo estoy llamando desde bci ¿cómo se encuentra hoy? ","[Introducción]: El motivo de mi llamada es para agradecer su preferencia con [completar campo], y además informarle de una excelente oportunidad. Le comento que BCI ha diseñado una completa cobertura dental que le permitirá acceder a tratamientos dentales que más necesitamos   con hasta un 100% de cobertura. Esto significa que podrá cuidar su sonrisa en la exclusiva red de clínicas privadas E-dental, con más de 200 ubicaciones a lo largo del país.","[beneficios principales]: lo mejor de todo es que muchos tratamientos son sin costo para usted. en caso de una urgencia dental, como dolor, inflamación o problemas protésicos, estará cubierto al 100%. algunos de estos tratamientos incluyen: [cobertura en caso de accidente]: como valor agregado, esta póliza también incluye una cobertura por accidentes que resulten en fallecimiento del titular, otorgando un monto en uf a sus herederos legales. ","[carencias]: podrá comenzar a usar los beneficios de urgencias en solo 5 días, y los tratamientos de prevención y otros servicios estarán disponibles en 30 días. lo más importante don (sra) es que todas las coberturas y beneficios entregados, para ud. como tt, tienen un costo de uf 0, fijas que son los $0 aprox [facilidad en la atención]: además, no se preocupe por reembolsos o papeleos. es muy sencillo: solo tiene que agendar su cita llamando al 227501096 en cualquiera de las clínicas de la red e-dental, y todos los beneficios se aplican de forma automática en su presupuesto. ¿lo dejamos activado para que pueda disfrutar de estos beneficios desde hoy? ","Cierre:
+PREGUNTA CONTRATACIÓN DEBE SER TEXTUAL
+Sr./Sra. [Nombre], ¿acepta la contratación voluntaria del seguro BCI Plus por un valor mensual de UF [Valor], aproximadamente $[Monto Aproximado] COP, con cargo automático en su tarjeta BCI?
+La cobertura del seguro BCI Plus comienza hoy, XX de XXXX de 2024 y su vigencia es anual, renovable automáticamente por periodos anuales. Sin perjuicio de la posibilidad de cada parte de poner término al seguro, en cualquier momento"
+Banco Chile,"buenos días/tardes, me podría comunicar con don/sra. <nombre y dos apellidos>? ","le llamo de parte de Banchile Corredores de Seguros ¿Cómo está usted?
+PARTE 2.- ACERCAMIENTO ","El motivo de mi llamado es para agradecer la permanencia que
+tiene con nosotros y queremos invitarlo a descargar la APP Mi Banco, donde podrá solicitar copia
+de sus pólizas, conocer avance de siniestros, entre otros.
+¿Ud. cuenta con esta aplicación?
+R: Si: Excelente.
+R: No: si gusta lo guío en la descarga
+Adicionalmente queremos contarle una excelente noticia, tenemos disponible nuestro Seguro
+Oncológico Libre Elección el cual podrá contratar por internet o la APP MI BANCO de manera
+fácil y rápida.","Si lo contrata a través de Internet o APP MI BANCO, tendrá las primeras 3 cuotas sin ningún
+costo para usted","¿Le interesa que lo oriente en los pasos para la contratación del Seguro Oncológico Libre
+Elección y de esta forma poder aclarar sus dudas en línea? "

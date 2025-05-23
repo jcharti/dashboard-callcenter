@@ -8,48 +8,31 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from tqdm import tqdm
 
-# Configuración
 audio_dir = "audios"
 transcripcion_dir = "transcripciones"
-metadatos_path = "metadatos.csv"
+metadatos_path = "metadatos.xlsx"
 resumen_path = "resumen.csv"
 script_path = "script_campana_bloques.csv"
 no_procesados_path = "no_procesados.csv"
+sheet_name = "Metadatos"
 
 os.makedirs(transcripcion_dir, exist_ok=True)
 
-# Frases clave
+print("🔁 Cargando modelo Whisper (base)...")
+model = whisper.load_model("base")
+
 SALUDOS = ["hola", "buenos días", "buenas tardes", "le habla"]
 CONSENTIMIENTO = ["consentimiento", "autorización", "permite grabar"]
 CIERRES = ["envío contrato", "queda registrado", "confirmo su compra", "formalizar"]
 PRECIOS = ["precio", "costo", "valor", "cuota", "montos"]
 OBJECIONES = ["no me interesa", "lo voy a pensar", "muy caro", "no puedo ahora", "ya lo vi", "no estoy interesado"]
 
-# Cargar modelo Whisper
-print("🔁 Cargando modelo Whisper (base)...")
-model = whisper.load_model("base")
-
-# Cargar scripts por bloques
 bloques = ["Saludo", "Presentación", "Oferta", "Beneficios", "Cierre"]
 df_script = pd.read_csv(script_path) if os.path.exists(script_path) else pd.DataFrame(columns=["Campaña"] + bloques)
 
 def obtener_script_bloques(campaña):
     fila = df_script[df_script["Campaña"] == campaña]
     return fila.iloc[0].to_dict() if not fila.empty else {}
-
-def calcular_apego_bloques(script_dict, transcripcion):
-    if not script_dict:
-        return 0.0, {}
-    total_score, detalle = 0.0, {}
-    for bloque in bloques:
-        contenido = script_dict.get(bloque, "")
-        palabras_script = set(contenido.lower().split())
-        palabras_trans = set(transcripcion.lower().split())
-        comunes = palabras_script.intersection(palabras_trans)
-        score = len(comunes) / len(palabras_script) * 100 if palabras_script else 0
-        detalle[bloque] = round(score, 1)
-        total_score += score
-    return round(total_score / len(bloques), 1), detalle
 
 def contiene_frases(texto, frases):
     return any(f in texto.lower() for f in frases)
@@ -68,13 +51,6 @@ def obtener_duracion_audio(path_audio):
     except:
         return 0.0
 
-def validar_fecha(fecha_str):
-    try:
-        datetime.strptime(str(fecha_str), "%Y-%m-%d")
-        return True
-    except:
-        return False
-
 def evaluar_velocidad(wpm):
     if wpm < 90:
         return "Lenta", 0.5
@@ -91,31 +67,59 @@ def evaluar_friccion(porcentaje):
     else:
         return "Alta", 0.5
 
+def calcular_apego_bloques(script_dict, transcripcion):
+    if not script_dict:
+        return 0.0, {}
+    total_score, detalle = 0.0, {}
+    for bloque in bloques:
+        contenido = script_dict.get(bloque, "")
+        palabras_script = set(contenido.lower().split())
+        palabras_trans = set(transcripcion.lower().split())
+        comunes = palabras_script.intersection(palabras_trans)
+        score = len(comunes) / len(palabras_script) * 100 if palabras_script else 0
+        detalle[bloque] = round(score, 1)
+        total_score += score
+    return round(total_score / len(bloques), 1), detalle
+
 def calcular_score_total(apego, wpm, friccion_pct):
     _, puntaje_wpm = evaluar_velocidad(wpm)
     _, puntaje_friccion = evaluar_friccion(friccion_pct)
     return round(apego * 0.6 + puntaje_wpm * 100 * 0.2 + puntaje_friccion * 100 * 0.2, 1)
 
-# Procesar audios
-metadatos = pd.read_csv(metadatos_path)
+# Leer metadatos
+metadatos = pd.read_excel(metadatos_path, sheet_name=sheet_name)
+metadatos["Estado"] = metadatos.get("Estado", "Pendiente")
+pendientes = metadatos[metadatos["Estado"] == "Pendiente"].copy()
+
+# Convertir Fecha Llamada a texto (manejo flexible)
+def parse_fecha(valor):
+    if isinstance(valor, datetime):
+        return valor.strftime("%Y-%m-%d")
+    try:
+        return pd.to_datetime(valor).strftime("%Y-%m-%d")
+    except:
+        return ""
+
+pendientes["Fecha Llamada"] = pendientes["Fecha Llamada"].apply(parse_fecha)
+
 resumen = []
 no_procesados = []
 
-audios_lista = [a for a in os.listdir(audio_dir) if a.endswith((".mp3", ".wav", ".m4a"))]
+for _, fila in tqdm(pendientes.iterrows(), total=len(pendientes), desc="Procesando audios"):
+    archivo = fila["Archivo"]
+    agente = fila["Agente"]
+    campaña = fila["Campaña"]
+    fecha = fila["Fecha Llamada"]
 
-for archivo in tqdm(audios_lista, desc="Procesando audios"):
-    if archivo not in metadatos["Archivo"].values:
-        no_procesados.append([archivo, "No está en metadatos"])
-        continue
-
-    fila = metadatos[metadatos["Archivo"] == archivo].iloc[0]
-    agente, campaña, fecha = fila["Agente"], fila["Campaña"], fila["Fecha"]
-
-    if not all([agente, campaña, fecha]) or not validar_fecha(fecha):
-        no_procesados.append([archivo, "Datos incompletos o fecha inválida"])
+    if not all([archivo, agente, campaña, fecha]):
+        no_procesados.append([archivo, "Datos incompletos"])
         continue
 
     path_audio = os.path.join(audio_dir, archivo)
+    if not os.path.exists(path_audio):
+        no_procesados.append([archivo, "Archivo no encontrado"])
+        continue
+
     transcripcion = model.transcribe(path_audio, language="Spanish")["text"].strip()
 
     palabras = len(transcripcion.split())
@@ -155,6 +159,12 @@ for archivo in tqdm(audios_lista, desc="Procesando audios"):
         fila_resumen.append(detalle.get(b, 0.0))
     resumen.append(fila_resumen)
 
+    idx = metadatos[metadatos["Archivo"] == archivo].index
+    metadatos.loc[idx, "Estado"] = "Procesado"
+    metadatos.loc[idx, "Fecha Procesado"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    metadatos.loc[idx, "updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    metadatos.loc[idx, "KPI Score"] = score_total
+
 with open(resumen_path, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerow([
@@ -170,5 +180,8 @@ if no_procesados:
         writer = csv.writer(f)
         writer.writerow(["Archivo", "Motivo"])
         writer.writerows(no_procesados)
+
+with pd.ExcelWriter(metadatos_path, engine="openpyxl") as writer:
+    metadatos.to_excel(writer, index=False, sheet_name=sheet_name)
 
 print("✅ Proceso completado.")
