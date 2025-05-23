@@ -11,7 +11,7 @@ El **Apego al Guión** se calcula como el promedio de cumplimiento por bloques d
 
 | Bloque       | Ejemplo de contenido            | Peso |
 |--------------|----------------------------------|------|
-| Saludo       | “Hola, le habla…”               | 20%  |
+| Saludo       | “Hola,habla…”                   | 20%  |
 | Presentación | “Mi nombre es…”                 | 20%  |
 | Oferta       | “La promoción incluye…”         | 20%  |
 | Beneficios   | “Usted obtiene…”                | 20%  |

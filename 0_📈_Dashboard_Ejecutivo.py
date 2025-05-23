@@ -16,12 +16,12 @@ df = pd.read_csv(csv_path)
 df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
 df = df.dropna(subset=["Fecha", "Campaña", "Agente", "Score Total"])
 
-# KPIs globales simplificados
+# KPIs agregados globales
 st.subheader("📌 KPIs globales")
-col1, col2, col3 = st.columns(3)
-col1.metric("Score Promedio", f"{df['Score Total'].mean():.1f}")
-col2.metric("Score más bajo", f"{df['Score Total'].min():.1f}")
-col3.metric("Score más alto", f"{df['Score Total'].max():.1f}")
+kpi1, kpi2, kpi3 = st.columns(3)
+kpi1.metric("Score promedio", f"{df['Score Total'].mean():.1f}")
+kpi2.metric("Desviación estándar", f"{df['Score Total'].std():.1f}")
+kpi3.metric("Score mediano", f"{df['Score Total'].median():.1f}")
 
 # Score promedio por campaña
 st.subheader("🏷️ Score promedio por campaña")
